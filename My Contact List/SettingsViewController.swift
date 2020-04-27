@@ -8,11 +8,16 @@
 
 import UIKit
 
+import CoreMotion
+
 class SettingsViewController: UIViewController, UIPickerViewDataSource, UIPickerViewDelegate {
     
     //second ascending option
     @IBOutlet weak var swAscending2: UISwitch!
     
+    @IBOutlet weak var lblBattery: UILabel!
+    
+    @IBOutlet var settingsView: UIView!
     
     //Sort Order Picker View
     @IBOutlet weak var pckSortField: UIPickerView!
@@ -35,6 +40,11 @@ class SettingsViewController: UIViewController, UIPickerViewDataSource, UIPicker
         pckSortField.delegate = self;
         pckState.dataSource = self;
         pckState.delegate = self;
+        
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        NotificationCenter.default.addObserver(self, selector: #selector(self.batteryChanged), name: UIDevice.batteryLevelDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(self.batteryChanged), name: UIDevice.batteryLevelDidChangeNotification, object: nil)
+        self.batteryChanged()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -65,12 +75,53 @@ class SettingsViewController: UIViewController, UIPickerViewDataSource, UIPicker
             f += 1
         }
         pckState.reloadComponent(0)
+        
     }
     
-    
-    
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        //Getting information about the device
+        self.startMotionDetection()
+        
+        let device = UIDevice.current
+        print("Device Info:")
+        print("Name: \(device.name)")
+        print("Model: \(device.model)")
+        print("System Name: \(device.systemName)")
+        print("System Version: \(device.systemVersion)")
+        print("Identifier: \(device.identifierForVendor!)")
+            
+        let orientation: String
+        switch (device.orientation) {
+        case .faceDown:
+            orientation = "Face Down"
+        case .landscapeLeft:
+            orientation = "Landscape Left"
+        case .portrait:
+            orientation="Portrait"
+        case .landscapeRight:
+            orientation = "Landscape Right"
+        case .faceUp:
+            orientation = "Face Up"
+        case .portraitUpsideDown:
+            orientation = "Portrait Upside Down"
+        case .unknown:
+            orientation = "Unknown Orientation"
+        }
+        print("Orientation: \(orientation)")
+    }
+        
+        
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        
+        UIDevice.current.isBatteryMonitoringEnabled = false
+        let appDelegate = UIApplication.shared.delegate as? AppDelegate
+        appDelegate?.motionManager.stopAccelerometerUpdates()
+    }
+        
+        override func didReceiveMemoryWarning() {
+            super.didReceiveMemoryWarning()
     }
     
     
@@ -108,9 +159,9 @@ class SettingsViewController: UIViewController, UIPickerViewDataSource, UIPicker
     
     //sets the value that is shown for each row in the picker
     func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? {
-        if pickerView.tag == 1 {
+        if pickerView.tag == 1 { //First PickerView
             return sortOrderItems[row]
-        } else {
+        } else { //Second Picker Voew
             return stateItems[row]
         }
     }
@@ -123,26 +174,73 @@ class SettingsViewController: UIViewController, UIPickerViewDataSource, UIPicker
         let settings = UserDefaults.standard
         
         
-        if pickerView.tag == 1 {
+        if pickerView.tag == 1 { //First PickerView
             let sortField = sortOrderItems[row]
             settings.set(sortField, forKey: Constants.kSortField)
             settings.synchronize()
-        }else {
+        }else { //second Picker View
+            
             let secondField = stateItems[row]
             settings.set(secondField, forKey: Constants.kState)
             settings.synchronize()
         }
         
-        
-        
-        
     }
 
 
+    @objc func batteryChanged() {
+        let device = UIDevice.current
+        var batteryState: String
+        switch (device.batteryState) {
+        case .charging:
+            batteryState = "+"
+        case .full:
+            batteryState = "!"
+        case .unplugged:
+            batteryState = "-"
+        case .unknown:
+            batteryState = "?"
+        }
+        let batteryLevelPercent = device.batteryLevel * 100
+        let batteryLevel = String(format: "%.0f%%", batteryLevelPercent)
+        let batteryStatus = "\(batteryLevel) \(batteryState)"
+        lblBattery.text = batteryStatus
+    }
     
     
+    func startMotionDetection() {
+        let appDelegate = UIApplication.shared.delegate as! AppDelegate
+        let mManager = appDelegate.motionManager
+        if mManager.isAccelerometerAvailable {
+            mManager.accelerometerUpdateInterval = 0.05
+            mManager.startAccelerometerUpdates(to: OperationQueue.main) {
+                (data: CMAccelerometerData?, error: Error?) in self.updateLabel(data: data!)
+            }
+        }
+    }
     
-    
+    func updateLabel(data: CMAccelerometerData) {
+        let statusBarHeight = UIApplication.shared.statusBarFrame.height
+               let tabBarHeight = self.tabBarController?.tabBar.frame.height
+               let moveFactor:Double = 15.0
+               var rect = lblBattery.frame
+               let moveToX = Double(rect.origin.x) + data.acceleration.x * moveFactor
+               let moveToY = Double(rect.origin.y + rect.size.height) - (data.acceleration.y * moveFactor)
+               let maxX = Double(settingsView.frame.size.width - rect.width)
+               let maxY = Double(settingsView.frame.size.height - tabBarHeight!)
+               let minY = Double(rect.size.height + statusBarHeight)
+               if(moveToX > 0 && moveToX < maxX){
+                   rect.origin.x += CGFloat(data.acceleration.x * moveFactor)
+               }
+               if(moveToY > minY && moveToY < maxY){
+                   rect.origin.y -= CGFloat(data.acceleration.y * moveFactor);
+               }
+               UIView.animate(withDuration: TimeInterval(0),
+                              delay: TimeInterval(0),
+                              options: UIView.AnimationOptions.curveEaseInOut,
+                              animations: {self.lblBattery.frame = rect},
+                              completion: nil)
+    }
     
 
 

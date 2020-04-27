@@ -7,10 +7,14 @@
 //
 
 import UIKit
-
 import CoreData
+import AVFoundation
+import MessageUI
 
-class ContactsViewController: UIViewController, UITextFieldDelegate, DateControllerDelegate {
+
+class ContactsViewController: UIViewController, UITextFieldDelegate, DateControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate, MFMessageComposeViewControllerDelegate {
+
+    
     
     
     var currentContact: Contact?
@@ -41,6 +45,15 @@ class ContactsViewController: UIViewController, UITextFieldDelegate, DateControl
     @IBOutlet weak var lblBirthdate: UILabel!
     //Contact Birthday Change Button
     @IBOutlet weak var btnChange: UIButton!
+    //Contact Image
+    @IBOutlet weak var imgContactPicture: UIImageView!
+    
+    
+    @IBOutlet weak var lblPhone: UILabel!
+    
+    @IBOutlet weak var lblCell: UILabel!
+    
+    
     
     //ScrollView
     
@@ -65,6 +78,9 @@ class ContactsViewController: UIViewController, UITextFieldDelegate, DateControl
             if currentContact!.birthday != nil {
                 lblBirthdate.text = formatter.string(from: currentContact!.birthday!)
             }
+            if let imageData = currentContact?.image {
+                imgContactPicture.image = UIImage(data: imageData)
+            }
         }
         changeEditMode(self)
         
@@ -76,6 +92,15 @@ class ContactsViewController: UIViewController, UITextFieldDelegate, DateControl
         for textfield in textFields {
             textfield.addTarget(self, action: #selector(UITextFieldDelegate.textFieldShouldEndEditing(_:)), for: UIControl.Event.editingDidEnd)
         }
+        
+        
+        //Long press calling functionality
+        let longPress = UILongPressGestureRecognizer.init(target: self, action: #selector(callPhone(gesture:)))
+        lblPhone.addGestureRecognizer(longPress)
+        
+        //Long press message functionality
+        let messageLongPress = UILongPressGestureRecognizer.init(target: self, action: #selector(textCell(gesture:)))
+        lblCell.addGestureRecognizer(messageLongPress)
     }
     
     func textFieldShouldEndEditing(_ textField: UITextField) -> Bool {
@@ -198,6 +223,140 @@ class ContactsViewController: UIViewController, UITextFieldDelegate, DateControl
     
     
     
+    //Cancels Image picker
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true, completion: nil)
+    }
+    
+    
+    @IBAction func changePicture(_ sender: Any) {
+        //Add Photo through photo library
+        let imagePicker = UIImagePickerController()
+        imagePicker.sourceType = .photoLibrary
+        imagePicker.delegate = self
+        imagePicker.allowsEditing = true
+        present(imagePicker, animated: true, completion: nil)
+        
+        
+//        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+//            let cameraController = UIImagePickerController()
+//            cameraController.sourceType = .camera
+//            cameraController.cameraCaptureMode = .photo
+//            cameraController.delegate = self
+//            cameraController.allowsEditing = true
+//            self.present(cameraController, animated: true, completion: nil)
+//        }
+        // MARK: Book Code
+//        if AVCaptureDevice.authorizationStatus(for: .video) != AVAuthorizationStatus.authorized {
+//            //camera not authorized
+//            let alertController = UIAlertController(title: "Camera Access Denied", message: "In order to take pictures, you ned to allow the app to access the camera in the Settings.", preferredStyle: .alert)
+//            let actionSettings = UIAlertAction(title: "Open Settings", style: .default) { action in self.openSettings() }
+//            let actionCancel = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
+//            alertController.addAction(actionSettings)
+//            alertController.addAction(actionCancel)
+//            present(alertController, animated: true, completion: nil)
+//        } else {
+//            //Already Authorized
+//            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+//                let cameraController = UIImagePickerController()
+//                cameraController.sourceType = .camera
+//                cameraController.cameraCaptureMode = .photo
+//                cameraController.delegate = self
+//                cameraController.allowsEditing = true
+//                self.present(cameraController, animated: true, completion: nil)
+//            }
+//        }
+        
+    }
+    
+    func openSettings() {
+        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+            if #available(iOS 10.0, *) {
+                UIApplication.shared.open(settingsUrl, options: [:], completionHandler: nil)
+            } else {
+                UIApplication.shared.openURL(settingsUrl)
+            }
+        }
+    }
+    
+    
+    
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        //UIImagePickerController.InfoKey
+        if let image = info[UIImagePickerController.InfoKey.editedImage] as? UIImage {
+            imgContactPicture.contentMode = .scaleAspectFit
+            imgContactPicture.image = image
+            if currentContact == nil {
+                let context = appDelegate.persistentContainer.viewContext
+                currentContact = Contact(context: context)
+            }
+            currentContact?.image = Data(image.jpegData(compressionQuality: 1.0)!)
+        }
+        
+        dismiss(animated: true, completion: nil)
+    }
+    
+    @objc func callPhone(gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began {
+            let number = "\(currentContact?.phoneNumber ?? "")"
+            if number.count > 0 {
+                let url = NSURL(string: "telprompt://\(number)")
+                UIApplication.shared.open(url as! URL, options: [:], completionHandler: nil)
+                print("Calling Phone Number: \(url!)")
+            }
+        }
+    }
+    
+    @objc func textCell(gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began {
+            let cell = "\(currentContact?.cellNumber ?? "")"
+            if cell.count > 0 {
+                
+                    
+                    message(cell: cell)
+                    
+                
+                
+                
+                
+            }
+        }
+        
+        
+    }
+    
+    func message(cell: String) {
+        
+        if !MFMessageComposeViewController.canSendText() {
+            print("SMS services are not available")
+        } else {
+            let messageVC = MFMessageComposeViewController()
+            messageVC.body = ""
+            messageVC.recipients = [cell]
+            messageVC.messageComposeDelegate = self
+            self.present(messageVC, animated: true, completion: nil)
+        }
+    }
+    
+    
+    func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
+        switch (result) {
+            case .cancelled:
+                print("Message was cancelled")
+                dismiss(animated: true, completion: nil)
+            case .failed:
+                print("Message failed")
+                dismiss(animated: true, completion: nil)
+            case .sent:
+                print("Message was sent")
+                dismiss(animated: true, completion: nil)
+            default:
+            break
+        }
+        self.dismiss(animated: true, completion: nil)
+    }
+    
     
     
     /*
@@ -209,5 +368,10 @@ class ContactsViewController: UIViewController, UITextFieldDelegate, DateControl
         // Pass the selected object to the new view controller.
     }
     */
+    
+    
+    
+    
+    
 
 }

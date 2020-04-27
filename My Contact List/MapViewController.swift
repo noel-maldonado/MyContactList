@@ -29,7 +29,6 @@ class MapViewController: UIViewController, CLLocationManagerDelegate, MKMapViewD
         mapView.delegate = self
         locationManager = CLLocationManager()
         locationManager.delegate = self
-        locationManager.requestWhenInUseAuthorization()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -73,7 +72,7 @@ class MapViewController: UIViewController, CLLocationManagerDelegate, MKMapViewD
             if let coordinate = bestMatch?.coordinate {
                 let mp = MapPoint(latitude: coordinate.latitude, longitude: coordinate.longitude)
                 mp.title = contact.contactName
-                mp.subtitle = contact.streetAddress
+                mp.subtitle = "\(contact.streetAddress ?? ""), \(contact.city ?? "")"
                 mapView.addAnnotation(mp)
             }
             else {
@@ -89,7 +88,8 @@ class MapViewController: UIViewController, CLLocationManagerDelegate, MKMapViewD
     @IBAction func findUser(_ sender: Any) {
 //        mapView.showsUserLocation = true
 //        mapView.setUserTrackingMode(.follow, animated: true)
-        mapView.showAnnotations(mapView.annotations, animated: true)
+        isLocationAccessEnabled()
+//        mapView.showAnnotations(mapView.annotations, animated: true)
     }
     
     func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
@@ -121,9 +121,52 @@ class MapViewController: UIViewController, CLLocationManagerDelegate, MKMapViewD
         }
     }
     
-    
-    
-    
+    //checks to see if its Enabled
+    func isLocationAccessEnabled () {
+        
+        if CLLocationManager.locationServicesEnabled() {
+            switch CLLocationManager.authorizationStatus() {
+            case .restricted, .denied:
+                print("not Enabled")
+                //grabs path to apps location service settings location
+                let settingsAppURL = URL(string: UIApplication.openSettingsURLString)!
+                
+//                if let url = URL(string: UIApplication.openSettingsURLString) {
+//                    if UIApplication.shared.canOpenURL(url) {
+//                        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+//                    }
+//                }
+                
+                
+                //sets up alert
+                let alert = UIAlertController(title: "Location Services disabled", message: "Location access is required to use \"Find me!\"", preferredStyle: .alert)
+                //sets cancel action
+                let okAction = UIAlertAction(title: "Cancel", style: .default, handler: nil)
+                //sets up action to trasfer the User to allow location access
+                let allowAccess = UIAlertAction(title: "Allow Location Acess", style: .cancel, handler: {
+//                    (alert) -> Void in UIApplication.shared.openURL(NSURL(string: "prefs:root=LOCATION_SERVICES")! as URL)
+                    
+                    (alert) -> Void in UIApplication.shared.open(settingsAppURL, options: [:], completionHandler: nil)
+                })
+                //adds actions
+                alert.addAction(okAction)
+                alert.addAction(allowAccess)
+                //presents the alert
+                present(alert, animated: true, completion: nil)
+                
+            case .authorizedAlways, .authorizedWhenInUse:
+                print("Enabled")
+                mapView.showsUserLocation = true
+                
+                mapView.setUserTrackingMode(.follow, animated: true)
+            case .notDetermined:
+                print("Not determined")
+                locationManager.requestWhenInUseAuthorization()
+            }
+        } else {
+            print("failed to check location services")
+        }
+    }
     
     /*
     // MARK: - Navigation

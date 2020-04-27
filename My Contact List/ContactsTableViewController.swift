@@ -99,6 +99,7 @@ class ContactsTableViewController: UITableViewController {
         //A Contact is retrieved
         let contact = contacts[indexPath.row] as? Contact
         //set label to contacts Name
+        
         cell.textLabel?.text = (contact?.contactName)! + " from " + (contact?.city)!
         
         
@@ -107,7 +108,11 @@ class ContactsTableViewController: UITableViewController {
         dateFormatter.dateFormat = "MMMM d, y"
         
         //set subtitle to city
-        cell.detailTextLabel?.text = "Born on: " + dateFormatter.string(from: (contact?.birthday)!)
+        if contact?.birthday == nil {
+//            cell.detailTextLabel?.text = "Born on: " + dateFormatter.string(from: (contact?.birthday)!)
+        } else {
+            cell.detailTextLabel?.text = "Born on: " + dateFormatter.string(from: (contact?.birthday)!)
+        }
         
         cell.accessoryType = .detailDisclosureButton
         
